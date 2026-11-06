@@ -1,0 +1,23 @@
+name: Deploy (manual)
+
+# Etapa de CD: implanta uma tag JÁ publicada no GHCR (não reconstrói nada).
+# Requer um self-hosted runner no ambiente de destino com Docker + Compose,
+# e o Environment "production" (pode ter aprovação obrigatória).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag da imagem (ex.: 1.2.0 ou sha-abc1234). Use uma tag anterior para rollback."
+        required: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Implantar
+        env:
+          IMAGE_REPO: ghcr.io/${{ github.repository }}
+          APP_CONTACT: ${{ secrets.APP_CONTACT }}
+        run: ./scripts/deploy.sh "${{ inputs.tag }}"
