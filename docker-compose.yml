@@ -3,7 +3,7 @@
 #   docker compose up -d --build               -> com o override docker-compose.build.yml (ver README)
 services:
   api:
-    image: ${IMAGE_REPO:-ghcr.io/ana-juliaps/musicbrainz-devops-api}:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO:-ghcr.io/OWNER/musicbrainz-devops-api}:${IMAGE_TAG:-latest}
     container_name: musicbrainz-api
     restart: unless-stopped
     ports:
