@@ -6,7 +6,7 @@ export function isValidMbid(value: string): boolean {
 }
 
 /** Normaliza o parâmetro `limit` (1..25, padrão 10). Retorna null se inválido. */
-export function parseLimit(raw: unknown, fallback = 10, max = 50): number | null {
+export function parseLimit(raw: unknown, fallback = 10, max = 25): number | null {
   if (raw === undefined) return fallback;
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 1 || n > max) return null;
