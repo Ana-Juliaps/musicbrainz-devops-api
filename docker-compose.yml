@@ -1,0 +1,24 @@
+# Execução local reproduzível. Use a imagem publicada no GHCR (padrão) ou faça build local:
+#   docker compose up -d                       -> usa ghcr.io/<owner>/musicbrainz-devops-api:${IMAGE_TAG:-latest}
+#   docker compose up -d --build               -> com o override docker-compose.build.yml (ver README)
+services:
+  api:
+    image: ${IMAGE_REPO:-ghcr.io/OWNER/musicbrainz-devops-api}:${IMAGE_TAG:-latest}
+    container_name: musicbrainz-api
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    environment:
+      PORT: "3000"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MUSICBRAINZ_BASE_URL: ${MUSICBRAINZ_BASE_URL:-https://musicbrainz.org/ws/2}
+      APP_CONTACT: ${APP_CONTACT:?defina APP_CONTACT no .env}
+      MB_MIN_INTERVAL_MS: ${MB_MIN_INTERVAL_MS:-1100}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3

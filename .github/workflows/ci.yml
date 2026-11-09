@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build, lint e testes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint (análise estática)
+        run: npm run lint
+
+      - name: Compilar TypeScript
+        run: npm run build
+
+      - name: Testes automatizados (Jest)
+        run: npm test
+
+      - name: Auditoria de dependências (npm audit)
+        run: npm run audit:deps
+
+      - name: Gerar artefato (pacote da aplicação)
+        run: |
+          mkdir -p artifact
+          tar -czf artifact/musicbrainz-devops-api-${{ github.sha }}.tgz dist package.json package-lock.json
+
+      - name: Publicar artefato e cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ github.sha }}
+          path: |
+            artifact/
+            coverage/lcov.info
+
+  docker:
+    name: Imagem Docker (GHCR)
+    needs: build-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Metadados da imagem (tags de rastreabilidade)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build da imagem (sem publicar) para análise
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: local/scan:${{ github.sha }}
+          build-args: APP_VERSION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan de vulnerabilidades da imagem (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: local/scan:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Smoke test - executar a imagem e consultar /health
+        run: |
+          docker run -d --name smoke -p 3000:3000 -e APP_CONTACT=ci@example.com local/scan:${{ github.sha }}
+          for i in $(seq 1 15); do
+            curl -fsS http://127.0.0.1:3000/health && exit 0
+            sleep 2
+          done
+          docker logs smoke
+          exit 1
+
+      - name: Login no GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publicar imagem no GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_VERSION=${{ github.sha }}
+          cache-from: type=gha
