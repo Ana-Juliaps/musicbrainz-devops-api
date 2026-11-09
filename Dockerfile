@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---------- Estágio 1: build ----------
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -10,13 +10,13 @@ COPY src ./src
 RUN npm run build
 
 # ---------- Estágio 2: dependências de produção ----------
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 # ---------- Estágio 3: runtime ----------
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production
 ARG APP_VERSION=0.0.0-dev
 ENV APP_VERSION=${APP_VERSION}
